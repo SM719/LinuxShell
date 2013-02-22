@@ -12,13 +12,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/stat.h>
-//#include <string.h>
-//#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+#include <unistd.h>
 
 static const char _env_FPath[]= "/etc/environment";//UBUNTU 12.10 Path
 
-char* getFile(char* fileName);
-char* getEnv(int* size);
+char* getFile(const char* fileName);
+char** getPath(int* size);
 bool setEnv(char* path);
 
 //Struct to pass args for our shell commands
@@ -28,30 +29,25 @@ struct command_t { char *name;
 };
 
 int main(void) {
-	//Simple Test to ensure program started
+//Simple Test to ensure program started
 	puts("Shell Started...");
 
 //Variables
-	int* pathSize=malloc(sizeof(int));
-
-	char* env[(int) &pathSize];
-	//char* env[]=getEnv();
+	int* pathArrSize=malloc(sizeof(int));
+	char** pathArr=getPath(pathArrSize);
 	char* input=(char*) malloc(255);
 
+
 //Testing
-	if(env==NULL){
+	if(pathArr==NULL){
 		puts("getEnv failed");
 	}else{
-
-		puts(env);
+		for(int i=0;i<*pathArrSize;i++){
+			puts(pathArr[i]);
+		}
 	}
 
 //Code
-	//puts(getEnv());//Prints ENV
-
-	//Shell Loop
-
-	//for(;;){
 		scanf("%s", input);
 		if(input!=NULL){
 			puts(input);
@@ -59,23 +55,61 @@ int main(void) {
 
 		getchar();
 		getchar();
-	//}*/
-//Clean-up
 
+//Clean-up
+		//free pathARR and all contained paths?
 	return EXIT_SUCCESS;
+}
+
+
+/*
+ * Results: The size of the path array will be set in size, the array of separated paths will be returned, else null
+ */
+char** getPath(int* size){
+    char** result;
+    char* currentPath;
+    char* delimiter=malloc(sizeof(char));
+    *delimiter=':';
+    int index_currentPath=0;
+
+    //Move first part of Path into array, if it doesn't exist then return.
+    currentPath=strtok(getenv ("PATH"), delimiter);
+    if(currentPath!=NULL){
+    	result=(char **) malloc(sizeof (char *));
+    	result[index_currentPath]=currentPath;
+    }else{
+    	*size=0;
+    	return NULL;
+    }
+
+    //Move every other Path into array
+    currentPath=strtok(NULL, delimiter);
+    while(currentPath != NULL){
+    	index_currentPath++;
+    	result=(char **) realloc(result, sizeof (char *)*(index_currentPath+1));//increase pointer array to hold results
+    	result[index_currentPath]=currentPath;
+        currentPath=strtok(NULL, delimiter);
+    }
+
+    //Set the size from the index and return the results
+    *size=index_currentPath+1;
+	return result;
 }
 /*
  * Assumes one entry per line
  */
+/*
 char* getEnv(int* size){
 	char* string=getFile(_env_FPath);
 	int variablesCount=0;
-	int currentVariableIndex=0;
-	int nextVariableIndex[sizeof(string)];
+	//strlen(string)
+	int nextVariableIndex[strlen(string)];//Make this as big as possibly necessary
+	int temp=sizeof(nextVariableIndex);
+	nextVariableIndex[0]=4;
 
 	//Find number of env variables
-	for(int index=0; index<sizeof(string);index++){
-		if(&string[index]=='\n'){
+	for(int index=0; index<strlen(string);index++){
+		if(string[index]=='\n'){
 			nextVariableIndex[variablesCount]=index+1;//Add the start of the next string
 			variablesCount++;
 		}
@@ -85,9 +119,16 @@ char* getEnv(int* size){
 	//Move Variables into Array
 	for(int index=0; index<variablesCount;index++){
 		//TODO
-		result[index]=malloc((nextVariableIndex[index]-2)-startingIndex);
+		if(index!=0){
+			result[index]=malloc((nextVariableIndex[index]-2)-nextVariableIndex[index-1]);
+			strncpy(result[index], string+nextVariableIndex[index-1], sizeof(*result[index]));
+		}else{
+			result[index]=malloc((nextVariableIndex[index]-2)-nextVariableIndex[index-1]);
+			strncpy(result[index], string, sizeof(*result[index]));
+		}
 	}
-	return result;
+	*size=variablesCount;
+	return *result;
 }
 /*
 char* getEnv(int* size){
@@ -136,10 +177,10 @@ bool setEnv(char* path){
 		}
 	return successful;
 }
-char* getFile(char* fileName){
+char* getFile(const char* fileName){
 	char *result = NULL;
 	struct stat fileStats;
-	int fileDescriptor = open(fileName, 0);
+	int fileDescriptor = open(fileName, O_RDONLY);
 
 	if (fileDescriptor < 0) {
 		fprintf(stderr, "file %s open failed\n", fileName);
