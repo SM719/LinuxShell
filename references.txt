@@ -1,3 +1,0 @@
-getPath()
-// Referenced: http://stackoverflow.com/questions/5051272/split-string-function
-
