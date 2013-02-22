@@ -1,170 +1,116 @@
-#include <unistd.h>
+/*
+ ============================================================================
+ Name        : eece315_project1.c
+ Author      : L2C - C4
+ Version     :
+ Copyright   :
+ Description : Hello World in C, Ansi-style
+ ============================================================================
+ */
+
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
+#include <unistd.h>
+int putenv(char* envString);//Removes compiler warning as fn doesn't have proper prototype
 
-#define MAX_ARGS 64
-
-#define MAX_ARG_LEN 16
-
-#define MAX_LINE_LEN 80
-
-#define WHITESPACE " ~,\t\n"
-
-struct command_t {
-char *name;
-int argc;
-char *argv[MAX_ARGS];
-};
-
-int runInBackground = 0;
-
-int changestdout = 0;
-
-char *filename;
-struct command_t command;
-
-
-
-//Function Declarations 
+//Function Declarations
+//User Input
 void printPromptMessage(void);
 void readUserCommand(char *userCommandEntered);
 int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct);
 void checkIfUserChangesDirectory(char *userCommandEntered);
+//Path
+char** getPath(int* pathArrSize);
+bool findPath(char** pathArr, int* pathArrSize, char* path);
+bool addPath(char** pathArr, int* pathArrSize, char* path);
+bool removePath(char** pathArr, int* pathArrSize, char* path);
+bool setPath(char** pathArr, int pathArrSize);
 
-int main(int argc, char *argv[]) {
+//Struct to pass args for our shell commands
+struct command_t { char *name;
+    int argc;
+    char *argv[];
+};
 
-	int pid, numChildren, status, count;
-	struct command_t command; // Shell initialization
-	char userCommandEntered[80];
-
-	
-	while(strcmp (userCommandEntered, "exit\n") != 0) {	
-		printPromptMessage();
-
-		readUserCommand(userCommandEntered);
-		checkIfUserChangesDirectory(userCommandEntered);
-		
-		if((pid = fork()) == 0) {
-		/* Child executing command */
-
-		//execv(path, command.argv);				
-		//execv(command.name, command.argv);
-			
-		}
-		
-
-		//printf("\nteseting\n");
-	}
-	return 0;
+int main(void) {
+    //Simple Test to ensure program started
+    puts("Shell Started...");
+    
+    //Variables
+    int* pathArrSize=malloc(sizeof(int));
+    char** pathArr=getPath(pathArrSize);
+    int pid, numChildren, status, count;
+    struct command_t command; // Shell initialization
+    char userCommandEntered[80];
+    
+    //Code
+    while(strcmp (userCommandEntered, "exit\n") != 0) {
+        printPromptMessage();
+        readUserCommand(userCommandEntered);
+        //Execute commands
+        //Either traverse file tree or run programs
+        
+    }
+    
+    //Clean-up
+    //free pathARR and all contained paths?
+    return EXIT_SUCCESS;
 }
 
+
+/*
+ * Results: The size of the path array will be set in size
+ * Returns: The array of separated paths will be returned, else null
+ */
+char** getPath(int* pathArrSize){
+    char** result;
+    char* currentPath;
+    char* delimiter=malloc(sizeof(char));
+    *delimiter=':';
+    int index_currentPath=0;
+    
+    //Move first part of Path into array, if it doesn't exist then return.
+    char* inputPath=getenv ("PATH");
+    if(inputPath==NULL){
+        return NULL;
+    }
+    currentPath=strtok(getenv ("PATH"), delimiter);
+    if(currentPath!=NULL){
+        result=(char **) malloc(sizeof (char *));
+        result[index_currentPath]=currentPath;
+    }else{
+        *pathArrSize=0;
+        return NULL;
+    }
+    
+    //Move every other Path into array
+    currentPath=strtok(NULL, delimiter);
+    while(currentPath != NULL){
+        index_currentPath++;
+        result=(char **) realloc(result, sizeof (char *)*(index_currentPath+1));//increase pointer array to hold results
+        result[index_currentPath]=currentPath;
+        currentPath=strtok(NULL, delimiter);
+    }
+    
+    //Set the size from the index and return the results
+    *pathArrSize=index_currentPath+1;
+    return result;
+}
 void readUserCommand(char *userCommandEntered){
-	
-	fgets (userCommandEntered, 80, stdin);
+    
+    fgets (userCommandEntered, 80, stdin);
 }
 
 void printPromptMessage(void){
-	
-	char compName[80];	
-
-    	gethostname(compName, 80); //Get the name of the computer
-
-
-	//Print shell prompt message
-	printf("GroupC4Shell - %s@%s: ", getlogin(), compName ); 
+    
+    char compName[80];
+    
+    gethostname(compName, 80); //Get the name of the computer
+    
+    
+    //Print shell prompt message
+    printf("GroupC4Shell - %s@%s: ", getlogin(), compName );
 }
-
-int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct) {
-
-   	int argc=0;
-
-    	char **clPtr;
-
-
-	/* Initialization */
-
-    	clPtr = &userCommandEntered; /* userCommandEntered is the command line */
-	commandStruct->argv[0] = (char *) malloc(MAX_ARG_LEN);
-
-
-        while((commandStruct->argv[argc] = strsep(clPtr, WHITESPACE)) != NULL)
-
-        {
-
-		commandStruct->argv[++argc] = (char *) malloc(MAX_ARG_LEN);
-
-        }
-
-
-
-    	/* Set the command name and argc */
-
-    	commandStruct->argc = (argc - 1);
-
-    	commandStruct->name = (char *) malloc(sizeof(commandStruct->argv[0]));
-
-    	strcpy(commandStruct->name, commandStruct->argv[0]);
-	
-	return 1;
-}
-
-void checkIfUserChangesDirectory(char *userCommandEntered){
-	
-
-//IF STATEMENTS TO CHECK IS USER WANTS TO NAVIGATE TO FOLDER IN HOME DIR BY USING '~'
-        if (userCommandEntered[0] == 'c' && userCommandEntered [1] == 'd' && userCommandEntered[2] == ' ' && userCommandEntered[3] == '~' && userCommandEntered[4] == '/')
-        {
-            parseCommandEntered(userCommandEntered, &command);
-			
-			//CALL SYSTEM FUNCTION TO CHANGE CURRENT DIRECTORY WITH ARGUMENT 'ABSOLUTE PATH TO FOLDER'
-            int ret = chdir(strcat(getenv("HOME"), command.argv[2]));
-			if( ret != 0 )
-				printf("Error: %s\n", strerror(errno)); 
-
-        }
-        //IF STATEMENT TO CHECK IF USER WANTS TO NAVIGATE TO THE HOME FOLDER BY USING '~'
-        else if (userCommandEntered[0] == 'c' && userCommandEntered [1] == 'd' && userCommandEntered[2] == ' ' && userCommandEntered[3] == '~')
-        {
-            int i = 2;
-            char *homedir;
-			//CALL SYSTEM FUNCTION TO GET HOME DIRECTORY AND PASS THIS AS ARGUMENT TO CHANGE CURRENT WORKING DIRECTORY   
-            homedir = getenv ("HOME");
-            i = chdir(homedir);
-        }
-        //IF STATEMENT TO CHECK IS USER WANTS TO GO UP ONE DIRECTORY LEVEL BY USING 'cd ..'
-        else if (userCommandEntered[0] == 'c' && userCommandEntered [1] == 'd' && userCommandEntered[2] == ' ' && userCommandEntered[3] == '.' && userCommandEntered[4] == '.')
-        {
-            int loop;
-            int i;
-            char *cwd = (char *) get_current_dir_name();
-            int cwdlength = (strlen (cwd)) - 1;
-            char *newcwd = (char *) malloc(cwdlength+1);
-            //ITERATE THRU THE LOOP STARTING AT THE LAST ELEMENT OF CURRENT DIRECTORY AND STOP AFTER FINDING THE FIRST '/'. 
-			//PASS THIS NEW STRING AS AN ARGUMENT TO SYSTEM CALL FOR CHANGING WORKING DIRECTORY. 
-			//IF THE FIRST OCCURENCE OF '/' IS AT THE FIRST CHARACTER THEN CHANGE DIRECTORY TO ROOT.   
-            for (loop = cwdlength - 1; loop >= 0; --loop)
-            {
-                if (loop == 0)
-                {
-                    i = chdir("/");
-                    break;
-                }
-                else if (cwd[loop] == '/')
-                {               
-                    strxfrm(newcwd,cwd,loop);
-                    i = chdir(newcwd);
-                    break;   
-                }
-            }
-        }
-
-
-
-}
-
