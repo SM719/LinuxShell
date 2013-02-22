@@ -8,19 +8,19 @@
  ============================================================================
  */
 
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+int putenv(char* envString);//Removes compiler warning as fn doesn't have proper prototype
 
-static const char _env_FPath[]= "/etc/environment";//UBUNTU 12.10 Path
-
-char* getFile(const char* fileName);
-char** getPath(int* size);
-bool setEnv(char* path);
+char** getPath(int* pathArrSize);
+bool findPath(char** pathArr, int* pathArrSize, char* path);
+bool addPath(char** pathArr, int* pathArrSize, char* path);
+bool removePath(char** pathArr, int* pathArrSize, char* path);
+bool setPath(char** pathArr, int pathArrSize);
 
 //Struct to pass args for our shell commands
 struct command_t { char *name;
@@ -37,8 +37,10 @@ int main(void) {
 	char** pathArr=getPath(pathArrSize);
 	char* input=(char*) malloc(255);
 
-
 //Testing
+	char* newPath="hello";
+	//addPath(pathArr, pathArrSize, newPath);Killing it
+	setPath(pathArr,*pathArrSize);
 	if(pathArr==NULL){
 		puts("getEnv failed");
 	}else{
@@ -65,7 +67,7 @@ int main(void) {
 /*
  * Results: The size of the path array will be set in size, the array of separated paths will be returned, else null
  */
-char** getPath(int* size){
+char** getPath(int* pathArrSize){
     char** result;
     char* currentPath;
     char* delimiter=malloc(sizeof(char));
@@ -73,12 +75,16 @@ char** getPath(int* size){
     int index_currentPath=0;
 
     //Move first part of Path into array, if it doesn't exist then return.
+    char* inputPath=getenv ("PATH");
+    if(inputPath==NULL){
+    	return NULL;
+    }
     currentPath=strtok(getenv ("PATH"), delimiter);
     if(currentPath!=NULL){
     	result=(char **) malloc(sizeof (char *));
     	result[index_currentPath]=currentPath;
     }else{
-    	*size=0;
+    	*pathArrSize=0;
     	return NULL;
     }
 
@@ -92,123 +98,70 @@ char** getPath(int* size){
     }
 
     //Set the size from the index and return the results
-    *size=index_currentPath+1;
+    *pathArrSize=index_currentPath+1;
 	return result;
 }
+
 /*
- * Assumes one entry per line
+ * Results: path will be added to pathArr if not already their
+ * Returns: True if path exists in pathArr at fn return, false otherwise
  */
-/*
-char* getEnv(int* size){
-	char* string=getFile(_env_FPath);
-	int variablesCount=0;
-	//strlen(string)
-	int nextVariableIndex[strlen(string)];//Make this as big as possibly necessary
-	int temp=sizeof(nextVariableIndex);
-	nextVariableIndex[0]=4;
-
-	//Find number of env variables
-	for(int index=0; index<strlen(string);index++){
-		if(string[index]=='\n'){
-			nextVariableIndex[variablesCount]=index+1;//Add the start of the next string
-			variablesCount++;
-		}
+bool addPath(char** pathArr, int* pathArrSize, char* path){
+	if(path==NULL){
+		return false;
 	}
-
-	char* result[variablesCount];
-	//Move Variables into Array
-	for(int index=0; index<variablesCount;index++){
-		//TODO
-		if(index!=0){
-			result[index]=malloc((nextVariableIndex[index]-2)-nextVariableIndex[index-1]);
-			strncpy(result[index], string+nextVariableIndex[index-1], sizeof(*result[index]));
-		}else{
-			result[index]=malloc((nextVariableIndex[index]-2)-nextVariableIndex[index-1]);
-			strncpy(result[index], string, sizeof(*result[index]));
-		}
+	if(findPath(pathArr, pathArrSize, path)){
+		return true;
 	}
-	*size=variablesCount;
-	return *result;
+	pathArr=(char **) realloc(pathArr, sizeof(char *)*((*pathArrSize)+1));
+	pathArr[*pathArrSize]=path;
+	*pathArrSize+=1;
+	return true;
 }
 /*
-char* getEnv(int* size){
-	struct stat fileStats;
-	FILE* file;
-
-	if(stat(_env_FPath, &fileStats)==-1){
-		fprintf(stderr, "Error opening etc/environment");
-		exit(1);
-	}
-
-	char* result[5];
-
-	file=fopen(_env_FPath,"r");
-	if(file!=NULL){
-		fscanf(file, "%s", result);
-		if(fclose(file)==EOF){
-			fprintf(stderr, "Error closing etc/environment");
-			exit(1);
-		}else
-			fprintf(stderr, "Close filestream Successful\n");
-	}else{
-		fprintf(stderr, "Error opening etc/environment");
-		exit(1);
-	}
-
-//Clean-up
-	return result;
+ * Results: path will be removed from pathArr if it exists
+ * Returns: True if path doesn't exist in pathArr at fn return, false otherwise
+ */
+bool removePath(char** pathArr, int* pathArrSize, char* path){
+	return true;
 }
-*/
-bool setEnv(char* path){
-	bool successful=false;
-	FILE* file;
+/*
+ * Returns: True if path found in pathArr, false otherwise
+ */
+bool findPath(char** pathArr, int* pathArrSize, char* path){
+	return false;
+}
+/*
+ * Results: pathArr will be used to set the "PATH" environment variable
+ * Returns: True if successful, false otherwise
+ */
+bool setPath(char** pathArr, int pathArrSize){
+	int pathSize=0;
 
-	file=fopen(_env_FPath,"w");
-		if(file!=NULL){
-			//fprintf(file, "%s", result);
-			if(fclose(file)==EOF){
-				fprintf(stderr, "Error closing etc/environment");
-				exit(1);
-			}else
-				fprintf(stderr, "Close filestream Successful\n");
-		}else{
-			fprintf(stderr, "Error opening etc/environment");
-			exit(1);
+	//Calculate the characters from paths
+	for(int i=0;i<pathArrSize; i++){
+		pathSize+=strlen(pathArr[i]);//Fucking UP......
+	}
+	//Calculate the characters from delimiters +5 for "PATH="
+	pathSize+=(pathArrSize-1)+5;
+
+	//Allocate memory for resulting path
+	char* systemPath=malloc(pathSize);
+
+	//Build resulting path to be written
+	systemPath[0]=0;//Clear first byte so strcat always sees as empty string
+	strcat(systemPath,"PATH=");
+	for(int i=0;i<pathArrSize; i++){
+		strcat(systemPath,pathArr[i]);
+		//If not the last argument then append delimiter
+		if(i!=pathArrSize-1){
+			strcat(systemPath,":");
 		}
-	return successful;
-}
-char* getFile(const char* fileName){
-	char *result = NULL;
-	struct stat fileStats;
-	int fileDescriptor = open(fileName, O_RDONLY);
-
-	if (fileDescriptor < 0) {
-		fprintf(stderr, "file %s open failed\n", fileName);
-		return NULL;
 	}
-	fstat(fileDescriptor, &fileStats);
-	result = (char *) malloc(fileStats.st_size+1); // + null terminator
+	//attempt to write the path to the system and return the results
+	if(putenv(systemPath)==0){
+		return true;
+	}else
+		return false;
 
-	if (!read(fileDescriptor, result, fileStats.st_size)) {
-		fprintf(stderr, "file read error\n");
-	}
-	result[fileStats.st_size] = '\0';
-	close(fileDescriptor);
-	return result;
 }
-/*char *AllData = NULL;
-    int FD = open(FileName, O_RDONLY);
-    if (FD < 0) {
-        fprintf(stderr, "file %s open failed\n", FileName);
-        return;
-    }
-    struct stat StatBuf;
-    fstat(FD, &StatBuf);
-    AllData = (char *) malloc(StatBuf.st_size+1); // + null terminator
-
-    if (!read(FD, AllData, StatBuf.st_size)) {
-        fprintf(stderr, "file read error\n");
-    }
-    AllData[StatBuf.st_size] = '\0';
-    close(FD);
-    */
