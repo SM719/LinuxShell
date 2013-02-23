@@ -52,46 +52,56 @@ int main(int argc, char *argv[])
     {
         
         parseCommandEntered(userCommandEntered, &command);
-        
-        
-        absolutePath = getAbsolutePathForCommand(pathArr, command.argv[0], getNumberOfFolders);
-        
-        //IF PATH RETURNED IS A VALID PATH THEN EXECUTE THE COMMAND ELSE PRINT 'NOT FOUND'
-        if ((strcmp(absolutePath,"not found") != 0) )
+        if (strcmp(command.name,"cd")==0)
         {
+            int temp = chdir(command.argv[1]);
+        }
+        
+        
+        
+        else{
+            //parseCommandEntered(userCommandEntered, &command);
             
-            //IF THE COMMAND ENTERED IS ONLY ONE ARGUMENT THEN DO NOT SET THE LAST ARGUMENT AS NULL
-            if(command.argc != 0)
-            {
-                command.argv[command.argc] = NULL;
-            }
             
-            //EXECUTE THE COMMAND IN THE CHILD PROCESS.
-            //IF FOR SOME REASON THE EXECV COMMANDS FAIL AND CHILD PROCESS IS NOT TERMINATED THEN 			KILL THE PROCESS MANUALLY.
-            if((pid = fork()) == 0)
+            absolutePath = getAbsolutePathForCommand(pathArr, command.argv[0], getNumberOfFolders);
+            
+            //IF PATH RETURNED IS A VALID PATH THEN EXECUTE THE COMMAND ELSE PRINT 'NOT FOUND'
+            if ((strcmp(absolutePath,"not found") != 0) )
             {
                 
-                execv(absolutePath, command.argv);
-                pid_t pidchild = getpid();
-                kill(pidchild,SIGKILL);
+                //IF THE COMMAND ENTERED IS ONLY ONE ARGUMENT THEN DO NOT SET THE LAST ARGUMENT AS NULL
+                if(command.argc != 0)
+                {
+                    command.argv[command.argc] = NULL;
+                }
+                
+                //EXECUTE THE COMMAND IN THE CHILD PROCESS.
+                //IF FOR SOME REASON THE EXECV COMMANDS FAIL AND CHILD PROCESS IS NOT TERMINATED THEN 			KILL THE PROCESS MANUALLY.
+                if((pid = fork()) == 0)
+				{
+                    
+					execv(absolutePath, command.argv);
+					pid_t pidchild = getpid();
+					kill(pidchild,SIGKILL);
+                }
+                
+                wait(&status);
+                
+                
+            }
+            else if (strcmp(absolutePath,"not found") == 0)
+            {
+                printf("%s: command not found\n", command.argv[0]);
             }
             
-            wait(&status);
             
             
         }
-        else if (strcmp(absolutePath,"not found") == 0)
-        {
-            printf("%s: command not found\n", command.argv[0]);
-        }
-        
-        
-        
-        
         //See if the user wants to continue executing commands
         printPromptMessage();
         readUserCommand(userCommandEntered);
-    }
+        
+	}
     
 	return 0;
 }
@@ -219,7 +229,7 @@ char** getPath(int* pathArrSize){
 
 void printPromptMessage(void){
     
-    char compName[80];
+    char compName[80];      
     
     gethostname(compName, 80); //Get the name of the computer
     
