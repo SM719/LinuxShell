@@ -52,9 +52,11 @@ int main(int argc, char *argv[])
     {
         
         parseCommandEntered(userCommandEntered, &command);
+        
         if (strcmp(command.name,"cd")==0)
         {
             int temp = chdir(command.argv[1]);
+            if(temp == -1) printf("No such file or directory\n");
         }
         
         
