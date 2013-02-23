@@ -164,7 +164,7 @@ char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumbe
     }
     
     //ITERATE THRU EVERY FOLDER IN PATH TO SEARCH IF THE FILE EXISTS
-    for (indexValue =1; indexValue <= getNumberOfFolders ; indexValue++)
+    for (indexValue =0; indexValue < getNumberOfFolders ; indexValue++)
     {
 		c3 = (char *)malloc(strlen(commandName) + strlen(pathArr[indexValue]) + 2);
 		strcpy(c3,pathArr[indexValue]);
@@ -209,6 +209,9 @@ char** getPath(int* pathArrSize){
     currentPath=strtok(getenv ("PATH"), delimiter);
     if(currentPath!=NULL){
         result=(char **) malloc(sizeof (char *));
+        
+        //result[ index_currentPath]=   (char *) malloc(sizeof (char )*100);
+        
         result[index_currentPath]=currentPath;
     }else{
         *pathArrSize=0;
@@ -220,6 +223,7 @@ char** getPath(int* pathArrSize){
     while(currentPath != NULL){
         index_currentPath++;
         result=(char **) realloc(result, sizeof (char *)*(index_currentPath+1));//increase pointer array to hold results
+        //result=   (char *) realloc(sizeof (char )*100);
         result[index_currentPath]=currentPath;
         currentPath=strtok(NULL, delimiter);
     }
@@ -231,7 +235,7 @@ char** getPath(int* pathArrSize){
 
 void printPromptMessage(void){
     
-    char compName[80];      
+    char compName[80];
     
     gethostname(compName, 80); //Get the name of the computer
     
