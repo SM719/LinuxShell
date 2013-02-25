@@ -1,116 +1,212 @@
 /*
  ============================================================================
  Name        : eece315_project1.c
- Author      : L2C - C4
+ Author      : L2C - Group C4
  Version     :
  Copyright   : 
- Description : Hello World in C, Ansi-style
+ Description : Project 1 - Linux Shell
  ============================================================================
  */
 
-#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
 #include <unistd.h>
-int putenv(char* envString);//Removes compiler warning as fn doesn't have proper prototype
+#include <string.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <errno.h>
 
-//Function Declarations
-	//User Input
-	void printPromptMessage(void);
-	void readUserCommand(char *userCommandEntered);
-	int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct);
-	void checkIfUserChangesDirectory(char *userCommandEntered);
-	//Path
-	char** getPath(int* pathArrSize);
-	bool findPath(char** pathArr, int* pathArrSize, char* path);
-	bool addPath(char** pathArr, int* pathArrSize, char* path);
-	bool removePath(char** pathArr, int* pathArrSize, char* path);
-	bool setPath(char** pathArr, int pathArrSize);
+//CONSTANTS USED IN THE PROGRAM
+#define MAX_ARGS 64
+#define WHITESPACE " ~,\t\n"
+
 
 //Struct to pass args for our shell commands
-struct command_t { char *name;
-	int argc;
-	char *argv[];
+struct command_t{ char *name;
+    int argc;
+    char *argv[MAX_ARGS];
 };
 
-int main(void) {
-//Simple Test to ensure program started
-	puts("Shell Started...");
 
-//Variables
-	int* pathArrSize=malloc(sizeof(int));
-	char** pathArr=getPath(pathArrSize);
-	int pid, numChildren, status, count;
-	struct command_t command; // Shell initialization
-	char userCommandEntered[80];
+//Function Declartions
+void readUserCommand(char *userCommandEntered);
+char** getPath(int* pathArrSize);
+void printPromptMessage(void);
+int parseCommand(char *, struct command_t *);
+char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumberOfFolders);
 
-//Code
-	while(strcmp (userCommandEntered, "exit\n") != 0) {
-		printPromptMessage();
-		readUserCommand(userCommandEntered);
-		//Execute commands
-		//Either traverse file tree or run programs
+
+
+//MAIN FUNCTION
+int main(int argc, char *argv[])
+{
+    int pid,  status, getNumberOfFolders;
+    char userCommandEntered[80];
+    char  *absolutePath;
+    struct command_t command;
+    int* pathArrSize=malloc(sizeof(int));
+    char** pathArr=getPath(pathArrSize);
+
+    printPromptMessage();
+
+    //GET USER INPUT
+    readUserCommand(userCommandEntered);
+
+    //Get the number of of folders we need to search
+	getNumberOfFolders = pathArrSize[0];
+
+    //see if the user wants to exit the shell
+    while (strcmp (userCommandEntered, "exit\n") != 0)
+    {
+
+        parseCommandEntered(userCommandEntered, &command);
+
+        if (strcmp(command.name,"cd")==0)
+        {
+            int temp = chdir(command.argv[1]);
+            if(temp == -1) printf("No such file or directory\n");
+        }
+
+
+
+        else{
+            //parseCommandEntered(userCommandEntered, &command);
+
+
+            absolutePath = getAbsolutePathForCommand(pathArr, command.argv[0], getNumberOfFolders);
+
+            //IF PATH RETURNED IS A VALID PATH THEN EXECUTE THE COMMAND ELSE PRINT 'NOT FOUND'
+            if ((strcmp(absolutePath,"not found") != 0) )
+            {
+
+                //IF THE COMMAND ENTERED IS ONLY ONE ARGUMENT THEN DO NOT SET THE LAST ARGUMENT AS NULL
+                if(command.argc != 0)
+                {
+                    command.argv[command.argc] = NULL;
+                }
+
+                //EXECUTE THE COMMAND IN THE CHILD PROCESS.
+                //IF FOR SOME REASON THE EXECV COMMANDS FAIL AND CHILD PROCESS IS NOT TERMINATED THEN 			KILL THE PROCESS MANUALLY.
+                if((pid = fork()) == 0)
+				{
+
+					execv(absolutePath, command.argv);
+					pid_t pidchild = getpid();
+					kill(pidchild,SIGKILL);
+                }
+
+                wait(&status);
+
+
+            }
+            else if (strcmp(absolutePath,"not found") == 0)
+            {
+                printf("%s: command not found\n", command.argv[0]);
+            }
+
+
+
+        }
+        //See if the user wants to continue executing commands
+        printPromptMessage();
+        readUserCommand(userCommandEntered);
 
 	}
 
-//Clean-up
-		//free pathARR and all contained paths?
-	return EXIT_SUCCESS;
+	return 0;
 }
 
+int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct) {
 
-/*
- * Results: The size of the path array will be set in size
- * Returns: The array of separated paths will be returned, else null
- */
-char** getPath(int* pathArrSize){
-    char** result;
-    char* currentPath;
-    char* delimiter=malloc(sizeof(char));
-    *delimiter=':';
-    int index_currentPath=0;
+    int argc=0;
 
-    //Move first part of Path into array, if it doesn't exist then return.
-    char* inputPath=getenv ("PATH");
-    if(inputPath==NULL){
-    	return NULL;
-    }
-    currentPath=strtok(getenv ("PATH"), delimiter);
-    if(currentPath!=NULL){
-    	result=(char **) malloc(sizeof (char *));
-    	result[index_currentPath]=currentPath;
-    }else{
-    	*pathArrSize=0;
-    	return NULL;
+    char **clPtr;
+
+
+    /* Initialization */
+
+    clPtr = &userCommandEntered; /* userCommandEntered is the command line */
+    commandStruct->argv[0] = (char *) malloc(16);
+
+
+    while((commandStruct->argv[argc] = strsep(clPtr, WHITESPACE)) != NULL)
+
+    {
+
+        commandStruct->argv[++argc] = (char *) malloc(16);
+
     }
 
-    //Move every other Path into array
-    currentPath=strtok(NULL, delimiter);
-    while(currentPath != NULL){
-    	index_currentPath++;
-    	result=(char **) realloc(result, sizeof (char *)*(index_currentPath+1));//increase pointer array to hold results
-    	result[index_currentPath]=currentPath;
-        currentPath=strtok(NULL, delimiter);
-    }
 
-    //Set the size from the index and return the results
-    *pathArrSize=index_currentPath+1;
-	return result;
+
+    /* Set the command name and argc */
+
+    commandStruct->argc = (argc - 1);
+
+    commandStruct->name = (char *) malloc(sizeof(commandStruct->argv[0]));
+
+    strcpy(commandStruct->name, commandStruct->argv[0]);
+
+    return 1;
 }
+
+//Function returns absolute path of the cmd typed by user
+char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumberOfFolders){
+
+    int indexValue = 1;
+    struct stat st;
+    char *c3, *commandName2, *slash = {"/"};
+
+    //COPY COMMAND ENTERED BY USER TO 'commandName2'
+    commandName2 = (char *)malloc(strlen(commandName)+1);
+    strcpy(commandName2,commandName);
+
+    //IF COMMAND STARTS WITH '/' THEN RETURN THE COMMAND ITSELF AS IT IS ALREADY AN ABSOLUTE PATH
+    if (commandName[0] == '/')
+    {
+        commandName2 = strsep(&commandName2, " ");
+        if (stat(commandName2,&st)== 0)
+			return(commandName2);
+        else
+            return("not found file");
+    }
+
+    //ITERATE THRU EVERY FOLDER IN PATH TO SEARCH IF THE FILE EXISTS
+    for (indexValue =0; indexValue < getNumberOfFolders ; indexValue++)
+    {
+		c3 = (char *)malloc(strlen(commandName) + strlen(pathArr[indexValue]) + 2);
+		strcpy(c3,pathArr[indexValue]);
+		strcat(c3,slash);
+        strcpy(commandName2,commandName);
+        commandName2 = strsep(&commandName2, " ");
+        commandName2 = strsep(&commandName2, "\n");
+        strcat(c3,commandName2);
+
+        //CALL SYSTEM FUNCTION TO CHECK IF THE FILE EXISTS. IF IT DOES THEN BREAK FROM LOOP AND RETURN THE FOLDER THAT THE EXECUTABLE WAS FOUND AT
+        if(stat(c3,&st)== 0)
+		{
+			return (c3);
+		}
+	}
+
+    //IF COMMAND IS NOT FOUND IN ANY OF THE FOLDERS IN PATH THEN RETURN 'not found'
+	return "not found";
+}
+
 void readUserCommand(char *userCommandEntered){
 
-        fgets (userCommandEntered, 80, stdin);
+    fgets (userCommandEntered, 80, stdin);
 }
 
 void printPromptMessage(void){
 
-        char compName[80];
+    char compName[80];
 
-        gethostname(compName, 80); //Get the name of the computer
+    gethostname(compName, 80); //Get the name of the computer
 
 
-        //Print shell prompt message
-        printf("GroupC4Shell - %s@%s: ", getlogin(), compName );
+    //Print shell prompt message
+    printf("GroupC4Shell - %s@%s: ", getlogin(), compName );
 }
