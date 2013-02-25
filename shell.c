@@ -45,7 +45,6 @@ struct command_t{ char *name;
 	int parseCommandEntered(char *, struct command_t *);
 	char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumberOfFolders);
 	//Path Functions
-	void exportEnv(char* envString);
 	char** getPath(int* pathArrSize);
 	int findPath(char** pathArr, int* pathArrSize, char* path);
 	char** addPath(char** pathArr, int* pathArrSize, char* path);
@@ -60,8 +59,13 @@ int main(int argc, char *argv[])
     char userCommandEntered[80];
     char  *absolutePath;
     struct command_t command;
+    //Get Path
     int* pathArrSize=malloc(sizeof(int));
     char** pathArr=getPath(pathArrSize);
+
+    //Create Local Environment Variables
+    int* localVariablesCount=malloc(sizeof(int));
+    char** localVariables;
 
     printPromptMessage();
 
@@ -76,18 +80,21 @@ int main(int argc, char *argv[])
     {
 
         parseCommandEntered(userCommandEntered, &command);
-
+        //CHECK FOR SHELL COMMANDS
+        //change directory
         if (strcmp(command.name,"cd")==0)
         {
             int temp = chdir(command.argv[1]);
             if(temp == -1) printf("No such file or directory\n");
-        }
-
-
-
+        }//export
+        else if (strcmp(command.name,"export")==0){
+        	if(command.argv[1]!=NULL && command.argv[2]!=NULL){
+        		//Parse Environment Variable parseEnv(char* input);
+        		//setenv(command.argv[1],command.argv[2], 1);
+        		//DEBUG PRINT getenv of that....
+        	}
+        }//create local variable
         else{
-            //parseCommandEntered(userCommandEntered, &command);
-
 
             absolutePath = getAbsolutePathForCommand(pathArr, command.argv[0], getNumberOfFolders);
 
@@ -112,55 +119,46 @@ int main(int argc, char *argv[])
                 }
 
                 wait(&status);
-
-
             }
             else if (strcmp(absolutePath,"not found") == 0)
             {
                 printf("%s: command not found\n", command.argv[0]);
             }
 
-
-
         }
         //See if the user wants to continue executing commands
         printPromptMessage();
         readUserCommand(userCommandEntered);
-
 	}
-
 	return 0;
 }
 
 int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct) {
 
     int argc=0;
-
     char **clPtr;
 
-
     /* Initialization */
-
     clPtr = &userCommandEntered; /* userCommandEntered is the command line */
     commandStruct->argv[0] = (char *) malloc(16);
 
-
     while((commandStruct->argv[argc] = strsep(clPtr, WHITESPACE)) != NULL)
-
     {
-
+    	//Check for Environment Variable argument, process and store.
+    	if(argc>0 && commandStruct->argv[argc][0]=='$'){
+    		char* var=malloc(sizeof(char*));
+    		//Checks Global Environment Variable
+    		if((var=getenv(commandStruct->argv[argc]+1))!=NULL){
+    			commandStruct->argv[argc] =var;//Assign value of variable to arg position
+    		}
+    		//TODO Check Local environment variable
+    	}
         commandStruct->argv[++argc] = (char *) malloc(16);
-
     }
 
-
-
     /* Set the command name and argc */
-
     commandStruct->argc = (argc - 1);
-
     commandStruct->name = (char *) malloc(sizeof(commandStruct->argv[0]));
-
     strcpy(commandStruct->name, commandStruct->argv[0]);
 
     return 1;
@@ -364,23 +362,4 @@ bool setPath(char** pathArr, int pathArrSize){
  */
 char* getEnv(char* envName){
 	return getenv(envName);
-}
-/*
- * Returns: Environment variable or null if not found
- * Note: Check if it is null before displaying
- */
-void exportEnv(char* envString){
-	char* name=malloc(sizeof(char*));
-	char* value=malloc(sizeof(char*));
-	char* delimeters=malloc(sizeof(char));
-	*delimeters='=';
-	//value=
-	//strtok(envString,delimeters);
-	//name=strtok(NULL, delimeters);
-	 char* delimiter=malloc(sizeof(char));
-	    *delimiter='=';
-	    if(envString!=NULL){
-	    	name=strtok(envString, delimiter);//Broken
-	    }
-	int x;
 }
