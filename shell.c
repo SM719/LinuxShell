@@ -42,6 +42,7 @@ struct environmentVariable_t{
 
 //Function Declarations
 //Library Functions without Prototypes -- Removes compiler warnings
+int unsetenv(char*);
 int setenv(char* name, char* envString, int overwrite);
 int gethostname (char *__name, size_t);
 char *strsep (char **__restrict __stringp,__const char *__restrict __delim);
