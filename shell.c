@@ -44,7 +44,7 @@ char *strsep (char **__restrict __stringp,__const char *__restrict __delim);
 //User Data Entry
 void readUserCommand(char *userCommandEntered);
 char** getPath(int* pathArrSize);
-void printPromptMessage(void);
+void printPromptMessage(int commandCount);
 int parseCommandEntered(char *, struct command_t *);
 char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumberOfFolders);
 //Path Functions
@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
     char  *absolutePath;
     struct command_t command;
     backgroundFlag = 0;
+	int commandCount = 0;
     //Get Path
     int* pathArrSize=malloc(sizeof(int));
     char** pathArr=getPath(pathArrSize);
@@ -71,7 +72,7 @@ int main(int argc, char *argv[])
     int* localVariablesCount=malloc(sizeof(int));
     char** localVariables;
     
-    printPromptMessage();
+    printPromptMessage(commandCount);
     
     //GET USER INPUT
     readUserCommand(userCommandEntered);
@@ -102,7 +103,8 @@ int main(int argc, char *argv[])
             
             absolutePath = getAbsolutePathForCommand(pathArr, command.argv[0], getNumberOfFolders);
             
-            //IF PATH RETURNED IS A VALID PATH THEN EXECUTE THE COMMAND ELSE PRINT 'NOT FOUND'
+            
+            //Only execute the command if the path is valid otherwise print command not found
             if ((strcmp(absolutePath,"not found") != 0) )
             {
                 
@@ -112,15 +114,14 @@ int main(int argc, char *argv[])
                     command.argv[command.argc] = NULL;
                 }
                 
-                //EXECUTE THE COMMAND IN THE CHILD PROCESS.
-                //IF FOR SOME REASON THE EXECV COMMANDS FAIL AND CHILD PROCESS IS NOT TERMINATED THEN 			KILL THE PROCESS MANUALLY.
+                
+                //Excute the command in child process
                 if((pid = fork()) == 0)
-				{
+                {
                     
 					execv(absolutePath, command.argv);
-					pid_t pidchild = getpid();
-					kill(pidchild,SIGKILL);
                 }
+                //If the run in background flag isn't set wait for child process to finish before continuing
                 if(backgroundFlag == 0)
                 {
                     
@@ -138,7 +139,8 @@ int main(int argc, char *argv[])
             
         }
         //See if the user wants to continue executing commands
-        printPromptMessage();
+        commandCount++;
+        printPromptMessage(commandCount);
         readUserCommand(userCommandEntered);
 	}
 	return 0;
@@ -209,11 +211,12 @@ char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumbe
     struct stat st;
     char *c3, *commandName2, *slash = {"/"};
     
-    //COPY COMMAND ENTERED BY USER TO 'commandName2'
+	//Make a copy of the command entered in commandName2
     commandName2 = (char *)malloc(strlen(commandName)+1);
     strcpy(commandName2,commandName);
     
-    //IF COMMAND STARTS WITH '/' THEN RETURN THE COMMAND ITSELF AS IT IS ALREADY AN ABSOLUTE PATH
+    
+	//Check if the command starts with an / if so return as its already an absolute path
     if (commandName[0] == '/')
     {
         commandName2 = strsep(&commandName2, " ");
@@ -223,7 +226,8 @@ char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumbe
             return("not found file");
     }
     
-    //ITERATE THRU EVERY FOLDER IN PATH TO SEARCH IF THE FILE EXISTS
+    
+	//Check every folder in the path to see if the file exits
     for (indexValue =0; indexValue < getNumberOfFolders ; indexValue++)
     {
 		c3 = (char *)malloc(strlen(commandName) + strlen(pathArr[indexValue]) + 2);
@@ -234,14 +238,15 @@ char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumbe
         commandName2 = strsep(&commandName2, "\n");
         strcat(c3,commandName2);
         
-        //CALL SYSTEM FUNCTION TO CHECK IF THE FILE EXISTS. IF IT DOES THEN BREAK FROM LOOP AND RETURN THE FOLDER THAT THE EXECUTABLE WAS FOUND AT
+        
+        //Check if teh file exists using a sytem call and if so then return the folder that the executable was found in
         if(stat(c3,&st)== 0)
 		{
 			return (c3);
 		}
 	}
     
-    //IF COMMAND IS NOT FOUND IN ANY OF THE FOLDERS IN PATH THEN RETURN 'not found'
+	//If the command is not found after search all the folders return the string not found
 	return "not found";
 }
 
@@ -250,19 +255,20 @@ void readUserCommand(char *userCommandEntered){
     fgets (userCommandEntered, 80, stdin);
 }
 
-void printPromptMessage(void){
+//Returns nothing prints the shell prompt message
+void printPromptMessage(int commandCount){
     
     char compName[80];
-	char *getCD;
+    
+	char *getCD, *CDbuffer;
 	getCD = (char*) malloc(100);
+	CDbuffer = (char*) malloc(100);
+	getCD = getcwd(CDbuffer, 99);  //Get the path of the current directory
     
     
     gethostname(compName, 80); //Get the name of the computer
-	getCD=getenv ("PWD");
-	
     
-	//Print shell prompt message
-    printf("GroupC4Shell- %s@%s:%s: ", getlogin(), compName, getCD );
+    printf("Commands Entered %d - %s@%s:%s: ", commandCount, getlogin(), compName, getCD );
 }
 
 //PATH FUNCTIONS
