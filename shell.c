@@ -107,7 +107,6 @@ int main(int argc, char *argv[])
             if(temp == -1) printf("No such file or directory\n");
 
         }//addPath
-
         else if (strcmp(command.name,"addPath")==0){
         	if(strlen(command.argv[1])!=0){
         		pathArr=addPath(pathArr,pathArrCount,command.argv[1]);
@@ -173,7 +172,7 @@ int main(int argc, char *argv[])
                 	localEnvVariablesCount=0;
                 	localEnvVariables=NULL;
 					execv(absolutePath, command.argv);
-					return 0;
+			//return 0;
                 }
                 //If the run in background flag isn't set wait for child process to finish before continuing
                 if(backgroundFlag == 0)
@@ -332,7 +331,7 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     commandStruct->argv[0] = (char *) malloc(16);
 	
     
-	if (userCommandEntered[0] == 'c' && userCommandEntered [1] == 'd') {
+	if (userCommandEntered[0] == 'c' && userCommandEntered [1] == 'd' && userCommandEntered [2] == ' ') {
         char* delimiter=malloc(sizeof(char));
         *delimiter=' ';
         
@@ -363,8 +362,6 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     	commandStruct->name = (char *) malloc(sizeof(commandStruct->argv[0]));
     	strcpy(commandStruct->name, commandStruct->argv[0]);
         return 1;
-        
-        
 	}
     
     while((commandStruct->argv[argc] = strsep(clPtr, WHITESPACE)) != NULL)
