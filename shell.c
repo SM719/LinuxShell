@@ -121,8 +121,15 @@ int main(int argc, char *argv[])
 					pid_t pidchild = getpid();
 					kill(pidchild,SIGKILL);
                 }
+                if(backgroundFlag == 0)
+                {
+                    
+                    wait(&status);
+                }
+                else {backgroundFlag = 0;}
                 
-                wait(&status);
+                
+                
             }
             else if (strcmp(absolutePath,"not found") == 0)
             {
@@ -141,6 +148,9 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     
     int argc=0;
     char **clPtr;
+	int length;
+	char *find;
+	
     
     /* Initialization */
     clPtr = &userCommandEntered; /* userCommandEntered is the command line */
@@ -157,6 +167,30 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     		}
     		//TODO Check Local environment variable
     	}
+        
+        
+		if(strcmp(commandStruct->argv[argc],"&") == 0 )
+		{
+			commandStruct->argv[argc] = " ";
+			argc++;
+			backgroundFlag = 1;
+			break;
+		}
+        
+		else
+		{
+            length = strlen(commandStruct->argv[argc]) - 1;
+            find = commandStruct->argv[argc];
+            
+            if (find[length] == '&')
+            {
+				find = strsep(&find, "&");
+				commandStruct->argv[argc] = find;
+				argc = argc + 2;
+				backgroundFlag = 1;
+				break;
+			}
+		}
         commandStruct->argv[++argc] = (char *) malloc(16);
     }
     
@@ -242,9 +276,16 @@ char** getPath(int* pathArrSize){
     char* delimiter=malloc(sizeof(char));
     *delimiter=':';
     int index_currentPath=0;
+	char * inputPath;
+	
     
     //Move first part of Path into array, if it doesn't exist then return.
-    char* inputPath=getenv ("PATH");
+    char* inputPath2=getenv ("PATH");
+	inputPath = (char *) malloc (strlen(inputPath2));
+	strcpy(inputPath,inputPath2);
+    
+    
+    
     if(inputPath==NULL){
     	exit(EXIT_FAILURE);//GetEnv  failed
     }
@@ -275,6 +316,7 @@ char** getPath(int* pathArrSize){
     *pathArrSize=index_currentPath+1;
 	return result;
 }
+
 
 /*
  * Results: path will be added to pathArr if not already there
