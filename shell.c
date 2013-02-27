@@ -61,7 +61,9 @@ char* buildExportPath(char** pathArr, int pathArrSize);
 struct environmentVariable_t* createEnvVar(char* rawEnvVariable);
 struct environmentVariable_t** addToLocalEnvVars(struct environmentVariable_t** localVariables, int* localVariablesCount, struct environmentVariable_t* envVar);
 int findLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName);
-
+bool removeLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName);
+//Help
+void printHelp();
 
 
 //MAIN FUNCTION
@@ -109,9 +111,18 @@ int main(int argc, char *argv[])
 		}//rmPath
         else if (strcmp(command.name,"rmPath")==0){
 			removePath(pathArr,pathArrCount, command.argv[1]);
+		}//getPath
+        else if (strcmp(command.name,"getPath")==0){
+			pathArr=getPath(pathArrCount);
 		}//rmEnv
         else if (strcmp(command.name,"rmEnv")==0){
         	unsetenv(command.argv[1]);
+		}//rmLocalEnv
+        else if (strcmp(command.name,"rmLocalEnv")==0){
+        	removeLocalEnvVar(localEnvVariables,localEnvVariablesCount,command.argv[1]);
+		}//--help
+        else if (strcmp(command.name,"--help")==0){
+			printHelp();
 		}
         //export
         else if (strcmp(command.name,"export")==0){
@@ -187,6 +198,25 @@ int main(int argc, char *argv[])
 	return 0;
 }
 /*
+ * Prints the help contents of the project
+ */
+void printHelp(){
+	printf("LAB L2C - Group C4's Shell\n\n");
+	printf("\t-varName=varValue to create or modify local environment variables\n");
+	printf("\t-echo $varName to show local or session environment variables\n");
+	printf("\t-export $varName or export varName=varValue to set session environment variables\n");
+	printf("\t-rmEnv environmentVariableName to remove session environment variable\n");
+	printf("\t-rmLocalEnv environmentVariableName to remove local environment variable\n");
+
+	printf("\n\n To easily modify the path and add paths to the local session, use the following path builder: \n");
+	printf("\t *If a local environment variable is created called \"PATH\", that will be used in export instead of this builder: \n");
+	printf("\t-addPath path to add to the local path\n");
+	printf("\t-rmPath path to remove from the local path\n");
+	printf("\t-getPath sets the local path to the session environment path\n");
+	printf("\t-export $PATH to build the session path and export it to the session environment variables if a local env Var doesn't exist\n");
+	printf("\n");
+}
+/*
  * Returns a envVar struct or Null if the input was bad
  */
 struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
@@ -249,6 +279,33 @@ int findLocalEnvVar(struct environmentVariable_t** localVariables, int* localVar
 			return index;
 	}
 	return -1;
+}
+/*
+ * Results: envVarName will be removed from localVariables if it exists
+ * Returns: True if path existed and removed, false if path didn't exist
+ */
+bool removeLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName){
+	if(envVarName==NULL){
+		exit(EXIT_FAILURE);//Null path
+	}
+	int index=findLocalEnvVar(localVariables,localVariablesCount,envVarName);
+	if(index==-1){
+		return false;
+	}
+	//Remove Path and adjust pathArr
+	for(;index<(*localVariablesCount)-1;index++){
+		localVariables[index]=localVariables[index+1];
+	}
+	//Decrease the array size
+	*localVariablesCount-=1;
+	//Free extra memory
+	if(*localVariablesCount==0){
+		free(localVariables);
+		localVariables=NULL;
+	}else if((localVariables=(struct environmentVariable_t**) realloc(localVariables, sizeof(struct environmentVariable_t**)*(*localVariablesCount)))==NULL){
+		exit(EXIT_FAILURE);//Alloc Failed
+	}
+	return true;
 }
 int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct,struct environmentVariable_t** localEnvVariables, int* localEnvVariablesCount, char** pathArr, int* pathArrCount) {
     
