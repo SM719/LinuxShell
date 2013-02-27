@@ -245,7 +245,7 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     				commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->value;
     				break;
     			}
-
+    			//SPECIAL CASE FOR PATH
     		}//Substitute the Value for the Variable normally
     		else{
 				char* EnvVarValue;
@@ -253,7 +253,8 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
 				//Check Local environment variable
 				if((localEnvVarIndex=findLocalEnvVar(localEnvVariables,localEnvVariablesCount,commandStruct->argv[argc]+1))!=-1){
 					commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->value;
-				}//Checks Global Environment Variable
+				}//SPECIAL CASE FOR PATH
+				//Checks Global Environment Variable
 				else if((EnvVarValue=getenv(commandStruct->argv[argc]+1))!=NULL){
 					commandStruct->argv[argc] =EnvVarValue;//Assign value of variable to arg position
 				}
