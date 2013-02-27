@@ -22,9 +22,9 @@
 
 //CONSTANTS USED IN THE PROGRAM
 #define MAX_ARGS 64
-#define WHITESPACE " ~,\t\n"
+#define WHITESPACE (char[]){' ','~',',','\t','\n'}
 
-//Global Varriables
+//Global Variables
 int backgroundFlag;
 
 
@@ -33,26 +33,34 @@ struct command_t{ char *name;
     int argc;
     char *argv[MAX_ARGS];
 };
+//Struct hold local environment variables
+struct environmentVariable_t{
+	char *name;
+	char *value;
+};
 
 
 //Function Declarations
 //Library Functions without Prototypes -- Removes compiler warnings
-//int setenv(char* name, char* envString, int overwrite);
+int setenv(char* name, char* envString, int overwrite);
 int gethostname (char *__name, size_t);
-int kill (__pid_t __pid, int __sig);
 char *strsep (char **__restrict __stringp,__const char *__restrict __delim);
 //User Data Entry
 void readUserCommand(char *userCommandEntered);
-char** getPath(int* pathArrSize);
+int parseCommandEntered(char *, struct command_t *,struct environmentVariable_t**, int*);
 void printPromptMessage(int commandCount);
-int parseCommandEntered(char *, struct command_t *);
 char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumberOfFolders);
 //Path Functions
 char** getPath(int* pathArrSize);
 int findPath(char** pathArr, int* pathArrSize, char* path);
 char** addPath(char** pathArr, int* pathArrSize, char* path);
 bool removePath(char** pathArr, int* pathArrSize, char* path);
-bool setPath(char** pathArr, int pathArrSize);
+bool exportPath(char** pathArr, int pathArrSize);
+//Local Environment Variable Functions
+struct environmentVariable_t* createEnvVar(char* rawEnvVariable);
+struct environmentVariable_t** addToLocalEnvVars(struct environmentVariable_t** localVariables, int* localVariablesCount, struct environmentVariable_t* envVar);
+int findLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName);
+
 
 
 //MAIN FUNCTION
@@ -69,8 +77,9 @@ int main(int argc, char *argv[])
     char** pathArr=getPath(pathArrSize);
     
     //Create Local Environment Variables
-    int* localVariablesCount=malloc(sizeof(int));
-    char** localVariables;
+    int* localEnvVariablesCount=malloc(sizeof(int));
+    *localEnvVariablesCount=0;
+    struct environmentVariable_t** localEnvVariables=NULL;
     
     printPromptMessage(commandCount);
     
@@ -83,8 +92,7 @@ int main(int argc, char *argv[])
     //see if the user wants to exit the shell
     while (strcmp (userCommandEntered, "exit\n") != 0)
     {
-        
-        parseCommandEntered(userCommandEntered, &command);
+        parseCommandEntered(userCommandEntered, &command, localEnvVariables,localEnvVariablesCount);
         //CHECK FOR SHELL COMMANDS
         //change directory
         if (strcmp(command.name,"cd")==0)
@@ -94,17 +102,23 @@ int main(int argc, char *argv[])
         }//export
         else if (strcmp(command.name,"export")==0){
         	if(command.argv[1]!=NULL && command.argv[2]!=NULL){
-        		//Parse Environment Variable parseEnv(char* input);
-        		//setenv(command.argv[1],command.argv[2], 1);
-        		//DEBUG PRINT getenv of that....
+        		//Check to see if we are creating and exporting an existing variable or creating a new one
+        		if(strchr(command.argv[1],'=')==NULL){
+        			//Values already separated by parseCommand into two arguments
+        			setenv(command.argv[1],command.argv[2],1);
+        		}
+        		else{
+        			//Create Local EnvVar then export it
+        			struct environmentVariable_t* envVar=createEnvVar(command.argv[1]);
+        			localEnvVariables=addToLocalEnvVars(localEnvVariables,localEnvVariablesCount, envVar);
+        			setenv(envVar->name,envVar->value,1);
+        		}
         	}
-        }//create local variable
+        }
         else{
             
             absolutePath = getAbsolutePathForCommand(pathArr, command.argv[0], getNumberOfFolders);
             
-            
-            //Only execute the command if the path is valid otherwise print command not found
             if ((strcmp(absolutePath,"not found") != 0) )
             {
                 
@@ -131,10 +145,13 @@ int main(int argc, char *argv[])
                 
                 
                 
+            }//Check to see if they were creating a local environment variable
+            else if(command.argc != 0 && strchr(command.argv[0],'=')!=NULL){
+            	localEnvVariables=addToLocalEnvVars(localEnvVariables,localEnvVariablesCount,createEnvVar(command.argv[0]));
             }
-            else if (strcmp(absolutePath,"not found") == 0)
-            {
-                printf("%s: command not found\n", command.argv[0]);
+            else{
+            	printf("%s: command not found\n", command.argv[0]);
+
             }
             
         }
@@ -146,7 +163,61 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct) {
+struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
+	struct environmentVariable_t* result=malloc(sizeof(struct environmentVariable_t));
+
+	char* delimiter=malloc(sizeof(char));
+	*delimiter='=';
+
+	//Assign Name
+	char* temp;
+	temp=strtok(rawEnvVariable, delimiter);
+	result->name=malloc(strlen(temp));
+	strcpy(result->name,temp);
+	//Assign Value
+	*delimiter='\n';
+	temp=strtok(NULL, delimiter);
+	result->value=malloc(strlen(temp));
+	strcpy(result->value,temp);
+
+	free(delimiter);
+	return result;
+}
+/*
+* Results: adds envVar to the localVariables if it doesn't exist or overwrites the old value if it does
+* Returns: the index where the envVar was written
+*/
+struct environmentVariable_t** addToLocalEnvVars(struct environmentVariable_t** localVariables, int* localVariablesCount, struct environmentVariable_t* envVar){
+	if(envVar==NULL){
+		exit(EXIT_FAILURE);//Null envVar
+	}
+
+	int index;
+	//Check if local path exists
+	if(localVariables==NULL || (index=findLocalEnvVar(localVariables,localVariablesCount,envVar->name))==-1){
+		if((localVariables=(struct environmentVariable_t**) realloc(localVariables, sizeof(struct environmentVariable_t*)*((*localVariablesCount)+1)))==NULL){
+			exit(EXIT_FAILURE);//Alloc Failed
+		}
+		index=*localVariablesCount;
+		*localVariablesCount+=1;
+	}
+	//Assigns the envVar to localVariables either adding it or overwriting the previous value
+	localVariables[index]=envVar;
+	return localVariables;
+	//return index;
+}
+/*
+* Returns: index of envVar if found in localVariables, -1 otherwise
+*/
+int findLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName){
+	int index;
+	for(index=0;index<*localVariablesCount; index++){
+		if(strcmp(localVariables[index]->name, envVarName)==0)
+			return index;
+	}
+	return -1;
+}
+int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct,struct environmentVariable_t** localEnvVariables, int* localEnvVariablesCount) {
     
     int argc=0;
     char **clPtr;
@@ -162,12 +233,31 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     {
     	//Check for Environment Variable argument, process and store.
     	if(argc>0 && commandStruct->argv[argc][0]=='$'){
-    		char* var=malloc(sizeof(char*));
-    		//Checks Global Environment Variable
-    		if((var=getenv(commandStruct->argv[argc]+1))!=NULL){
-    			commandStruct->argv[argc] =var;//Assign value of variable to arg position
+    		//Check if we are running an export command
+    		if(strcmp(commandStruct->argv[0],"export")==0){
+				int localEnvVarIndex;
+    			//Check Local environment variable
+    			if((localEnvVarIndex=findLocalEnvVar(localEnvVariables,localEnvVariablesCount,commandStruct->argv[argc]+1))!=-1){
+    				//If Found Ready Arguments for the export command
+    				commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->name;
+    				commandStruct->argv[++argc] = (char *) malloc(16);
+    				commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->value;
+    				break;
+    			}
+    			//SPECIAL CASE FOR PATH
+    		}//Substitute the Value for the Variable normally
+    		else{
+				char* EnvVarValue;
+				int localEnvVarIndex;
+				//Check Local environment variable
+				if((localEnvVarIndex=findLocalEnvVar(localEnvVariables,localEnvVariablesCount,commandStruct->argv[argc]+1))!=-1){
+					commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->value;
+				}//SPECIAL CASE FOR PATH
+				//Checks Global Environment Variable
+				else if((EnvVarValue=getenv(commandStruct->argv[argc]+1))!=NULL){
+					commandStruct->argv[argc] =EnvVarValue;//Assign value of variable to arg position
+				}
     		}
-    		//TODO Check Local environment variable
     	}
         
         
@@ -286,9 +376,9 @@ char** getPath(int* pathArrSize){
 	
     
     //Move first part of Path into array, if it doesn't exist then return.
-    char* inputPath2=getenv ("PATH");
-	inputPath = (char *) malloc (strlen(inputPath2));
-	strcpy(inputPath,inputPath2);
+    char* temptInputPath=getenv ("PATH");
+	inputPath = (char *) malloc (strlen(temptInputPath));
+	strcpy(inputPath,temptInputPath);
     
     
     
@@ -320,6 +410,7 @@ char** getPath(int* pathArrSize){
     
     //Set the size from the index and return the results
     *pathArrSize=index_currentPath+1;
+    free(delimiter);
 	return result;
 }
 
@@ -371,7 +462,6 @@ bool removePath(char** pathArr, int* pathArrSize, char* path){
  * Returns: index of path if found in pathArr, -1 otherwise
  */
 int findPath(char** pathArr, int* pathArrSize, char* path){
-	
 	int i;
 	for(i=0;i<*pathArrSize; i++){
 		if(strcmp(pathArr[i],path)==0)
@@ -382,10 +472,10 @@ int findPath(char** pathArr, int* pathArrSize, char* path){
 /*
  * Results: pathArr will be used to set the "PATH" environment variable
  * Returns: True if successful, false otherwise
- * Notes: setPath doesn't persist between sessions
+ * Notes: exportPath doesn't persist between sessions
  * http://www.cplusplus.com/forum/beginner/48228/
  */
-bool setPath(char** pathArr, int pathArrSize){
+bool exportPath(char** pathArr, int pathArrSize){
 	int pathSize=0;
     
 	//Calculate the characters from paths
@@ -411,14 +501,9 @@ bool setPath(char** pathArr, int pathArrSize){
 	}
 	//Attempt to write the path to the system and return the results
 	if((setenv("PATH",systemPath,1))==0){
+		free(systemPath);
 		return true;
 	}else
+		free(systemPath);
 		return false;
-}
-/*
- * Returns: Environment variable or null if not found
- * Note: Check if it is null before displaying
- */
-char* getEnv(char* envName){
-	return getenv(envName);
 }
