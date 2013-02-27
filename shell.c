@@ -47,7 +47,7 @@ int gethostname (char *__name, size_t);
 char *strsep (char **__restrict __stringp,__const char *__restrict __delim);
 //User Data Entry
 void readUserCommand(char *userCommandEntered);
-int parseCommandEntered(char *, struct command_t *,struct environmentVariable_t**, int*);
+int parseCommandEntered(char *, struct command_t *,struct environmentVariable_t**, int*,char**,int*);
 void printPromptMessage(int commandCount);
 char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumberOfFolders);
 //Path Functions
@@ -55,7 +55,7 @@ char** getPath(int* pathArrSize);
 int findPath(char** pathArr, int* pathArrSize, char* path);
 char** addPath(char** pathArr, int* pathArrSize, char* path);
 bool removePath(char** pathArr, int* pathArrSize, char* path);
-bool exportPath(char** pathArr, int pathArrSize);
+char* buildExportPath(char** pathArr, int pathArrSize);
 //Local Environment Variable Functions
 struct environmentVariable_t* createEnvVar(char* rawEnvVariable);
 struct environmentVariable_t** addToLocalEnvVars(struct environmentVariable_t** localVariables, int* localVariablesCount, struct environmentVariable_t* envVar);
@@ -73,8 +73,8 @@ int main(int argc, char *argv[])
     backgroundFlag = 0;
 	int commandCount = 0;
     //Get Path
-    int* pathArrSize=malloc(sizeof(int));
-    char** pathArr=getPath(pathArrSize);
+    int* pathArrCount=malloc(sizeof(int));
+    char** pathArr=getPath(pathArrCount);
     
     //Create Local Environment Variables
     int* localEnvVariablesCount=malloc(sizeof(int));
@@ -87,23 +87,32 @@ int main(int argc, char *argv[])
     readUserCommand(userCommandEntered);
     
     //Get the number of of folders we need to search
-	getNumberOfFolders = pathArrSize[0];
+	getNumberOfFolders = pathArrCount[0];
     
     //see if the user wants to exit the shell
     while (strcmp (userCommandEntered, "exit\n") != 0)
     {
-        parseCommandEntered(userCommandEntered, &command, localEnvVariables,localEnvVariablesCount);
+        parseCommandEntered(userCommandEntered, &command, localEnvVariables,localEnvVariablesCount,pathArr,pathArrCount);
         //CHECK FOR SHELL COMMANDS
         //change directory
         if (strcmp(command.name,"cd")==0)
         {
             int temp = chdir(command.argv[1]);
             if(temp == -1) printf("No such file or directory\n");
-        }//export
+        }//addPath
+        else if (strcmp(command.name,"addPath")==0){
+        	pathArr=addPath(pathArr,pathArrCount,command.argv[1]);
+
+		}//rmPath
+        else if (strcmp(command.name,"rmPath")==0){
+			removePath(pathArr,pathArrCount, command.argv[1]);
+		}
+        //export
         else if (strcmp(command.name,"export")==0){
         	if(command.argv[1]!=NULL && command.argv[2]!=NULL){
         		//Check to see if we are creating and exporting an existing variable or creating a new one
         		if(strchr(command.argv[1],'=')==NULL){
+        			//Existing Local Variable
         			//Values already separated by parseCommand into two arguments
         			setenv(command.argv[1],command.argv[2],1);
         		}
@@ -132,7 +141,11 @@ int main(int argc, char *argv[])
                 //Excute the command in child process
                 if((pid = fork()) == 0)
                 {
-                    
+                	//Fetch the environment variable this process should have
+                	pathArr=getPath(pathArrCount);
+                	localEnvVariablesCount=0;
+                	localEnvVariables=NULL;
+                	//Clear the local environment variables
 					execv(absolutePath, command.argv);
                 }
                 //If the run in background flag isn't set wait for child process to finish before continuing
@@ -217,7 +230,7 @@ int findLocalEnvVar(struct environmentVariable_t** localVariables, int* localVar
 	}
 	return -1;
 }
-int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct,struct environmentVariable_t** localEnvVariables, int* localEnvVariablesCount) {
+int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct,struct environmentVariable_t** localEnvVariables, int* localEnvVariablesCount, char** pathArr, int* pathArrCount) {
     
     int argc=0;
     char **clPtr;
@@ -238,13 +251,18 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
 				int localEnvVarIndex;
     			//Check Local environment variable
     			if((localEnvVarIndex=findLocalEnvVar(localEnvVariables,localEnvVariablesCount,commandStruct->argv[argc]+1))!=-1){
+    				//char* name=malloc(strlen(localEnvVariables[localEnvVarIndex]->name));
+    				//name
     				//If Found Ready Arguments for the export command
     				commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->name;
     				commandStruct->argv[++argc] = (char *) malloc(16);
     				commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->value;
     				break;
+    			}else if(strcmp(commandStruct->argv[argc]+1,"PATH")==0){
+    				//Ready Arguments for the export command
+					commandStruct->argv[argc]=buildExportPath(pathArr,*pathArrCount);
+					break;
     			}
-    			//SPECIAL CASE FOR PATH
     		}//Substitute the Value for the Variable normally
     		else{
 				char* EnvVarValue;
@@ -252,8 +270,10 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
 				//Check Local environment variable
 				if((localEnvVarIndex=findLocalEnvVar(localEnvVariables,localEnvVariablesCount,commandStruct->argv[argc]+1))!=-1){
 					commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->value;
-				}//SPECIAL CASE FOR PATH
-				//Checks Global Environment Variable
+				}else if(strcmp(commandStruct->argv[argc]+1,"PATH")==0){
+    				//Ready Arguments for the export command
+					commandStruct->argv[argc]=buildExportPath(pathArr,*pathArrCount);
+				}//Checks Global Environment Variable
 				else if((EnvVarValue=getenv(commandStruct->argv[argc]+1))!=NULL){
 					commandStruct->argv[argc] =EnvVarValue;//Assign value of variable to arg position
 				}
@@ -268,7 +288,6 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
 			backgroundFlag = 1;
 			break;
 		}
-        
 		else
 		{
             length = strlen(commandStruct->argv[argc]) - 1;
@@ -313,7 +332,9 @@ char* getAbsolutePathForCommand(char *pathArr[], char *commandName, int getNumbe
         if (stat(commandName2,&st)== 0)
 			return(commandName2);
         else
-            return("not found file");
+            return("not found");
+    }else if(strlen(commandName2)==0){
+    	return("not found");
     }
     
     
@@ -357,7 +378,6 @@ void printPromptMessage(int commandCount){
     
     
     gethostname(compName, 80); //Get the name of the computer
-    
     printf("Commands Entered %d - %s@%s:%s: ", commandCount, getlogin(), compName, getCD );
 }
 
@@ -418,19 +438,22 @@ char** getPath(int* pathArrSize){
 /*
  * Results: path will be added to pathArr if not already there
  * Returns: pathArr
- * Notes: modifying pathArr without returning&assigning it messes up memory somehow?-wTf
+ * Notes: modifying pathArr without returning & assigning it messes up memory somehow?-wTf
  */
 char** addPath(char** pathArr, int* pathArrSize, char* path){
 	if(path==NULL){
 		exit(EXIT_FAILURE);//Null path
 	}
-	if((findPath(pathArr, pathArrSize, path)!=-1)){
+
+	char* addedPath=malloc(sizeof(char*));
+	strcpy(addedPath,path);
+	if((findPath(pathArr, pathArrSize, addedPath)!=-1)){
 		return pathArr;
 	}
 	if((pathArr=(char **) realloc(pathArr, sizeof(char *)*((*pathArrSize)+1)))==NULL){
 		exit(EXIT_FAILURE);//Alloc Failed
 	}
-	pathArr[*pathArrSize]=path;
+	pathArr[*pathArrSize]=addedPath;
 	*pathArrSize+=1;
 	return pathArr;
 }
@@ -470,12 +493,11 @@ int findPath(char** pathArr, int* pathArrSize, char* path){
 	return -1;
 }
 /*
- * Results: pathArr will be used to set the "PATH" environment variable
- * Returns: True if successful, false otherwise
- * Notes: exportPath doesn't persist between sessions
+ * Results: pathArr will be used to build the "PATH" environment variable
+ * Returns: PATH's value as a string
  * http://www.cplusplus.com/forum/beginner/48228/
  */
-bool exportPath(char** pathArr, int pathArrSize){
+char* buildExportPath(char** pathArr, int pathArrSize){
 	int pathSize=0;
     
 	//Calculate the characters from paths
@@ -483,15 +505,14 @@ bool exportPath(char** pathArr, int pathArrSize){
 	for(i=0;i<pathArrSize; i++){
 		pathSize+=strlen(pathArr[i]);
 	}
-	//Calculate the characters from delimiters +5 for "PATH="
-	pathSize+=(pathArrSize-1);//+5;
+	//Calculate the characters from delimiters
+	pathSize+=(pathArrSize-1);
     
 	//Allocate memory for resulting path
 	char* systemPath=malloc(pathSize);
     
 	//Build resulting path to be written
 	systemPath[0]=0;//Clear first byte so strcat always sees as empty string
-	//strcat(systemPath,"PATH=");
 	for(i=0;i<pathArrSize; i++){
 		strcat(systemPath,pathArr[i]);
 		//If not the last argument then append delimiter
@@ -499,11 +520,5 @@ bool exportPath(char** pathArr, int pathArrSize){
 			strcat(systemPath,":");
 		}
 	}
-	//Attempt to write the path to the system and return the results
-	if((setenv("PATH",systemPath,1))==0){
-		free(systemPath);
-		return true;
-	}else
-		free(systemPath);
-		return false;
+	return systemPath;
 }
