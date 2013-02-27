@@ -62,6 +62,9 @@ struct environmentVariable_t* createEnvVar(char* rawEnvVariable);
 struct environmentVariable_t** addToLocalEnvVars(struct environmentVariable_t** localVariables, int* localVariablesCount, struct environmentVariable_t* envVar);
 int findLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName);
 char *get_current_dir_name(void);
+bool removeLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName);
+//Help
+void printHelp();
 
 
 //MAIN FUNCTION
@@ -93,7 +96,8 @@ int main(int argc, char *argv[])
     //see if the user wants to exit the shell
     while (strcmp (userCommandEntered, "exit\n") != 0)
     {
-        
+
+
         parseCommandEntered(userCommandEntered, &command, localEnvVariables,localEnvVariablesCount,pathArr,pathArrCount);
         //CHECK FOR SHELL COMMANDS
         //change directory
@@ -101,19 +105,31 @@ int main(int argc, char *argv[])
         {
             int temp = chdir(command.argv[1]);
             if(temp == -1) printf("No such file or directory\n");
-        }
-        //addPath
+
+        }//addPath
+
         else if (strcmp(command.name,"addPath")==0){
         	if(strlen(command.argv[1])!=0){
         		pathArr=addPath(pathArr,pathArrCount,command.argv[1]);
         	}
-            
+
+
 		}//rmPath
         else if (strcmp(command.name,"rmPath")==0){
 			removePath(pathArr,pathArrCount, command.argv[1]);
+		}//getPath
+        else if (strcmp(command.name,"getPath")==0){
+			pathArr=getPath(pathArrCount);
 		}//rmEnv
         else if (strcmp(command.name,"rmEnv")==0){
         	unsetenv(command.argv[1]);
+		}//rmLocalEnv
+        else if (strcmp(command.name,"rmLocalEnv")==0){
+        	removeLocalEnvVar(localEnvVariables,localEnvVariablesCount,command.argv[1]);
+		}//--help
+        else if (strcmp(command.name,"--help")==0){
+			printHelp();
+
 		}
         //export
         else if (strcmp(command.name,"export")==0){
@@ -189,6 +205,28 @@ int main(int argc, char *argv[])
 	return 0;
 }
 /*
+<<<<<<< HEAD
+=======
+ * Prints the help contents of the project
+ */
+void printHelp(){
+	printf("LAB L2C - Group C4's Shell\n\n");
+	printf("\t-varName=varValue to create or modify local environment variables\n");
+	printf("\t-echo $varName to show local or session environment variables\n");
+	printf("\t-export $varName or export varName=varValue to set session environment variables\n");
+	printf("\t-rmEnv environmentVariableName to remove session environment variable\n");
+	printf("\t-rmLocalEnv environmentVariableName to remove local environment variable\n");
+
+	printf("\n\n To easily modify the path and add paths to the local session, use the following path builder: \n");
+	printf("\t *If a local environment variable is created called \"PATH\", that will be used in export instead of this builder: \n");
+	printf("\t-addPath path to add to the local path\n");
+	printf("\t-rmPath path to remove from the local path\n");
+	printf("\t-getPath sets the local path to the session environment path\n");
+	printf("\t-export $PATH to build the session path and export it to the session environment variables if a local env Var doesn't exist\n");
+	printf("\n");
+}
+/*
+>>>>>>> 2f4287cb680c31aa907f03c6c7daff066fc6e795
  * Returns a envVar struct or Null if the input was bad
  */
 struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
@@ -205,7 +243,7 @@ struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
 	}
 	result->name=malloc(strlen(temp));
 	strcpy(result->name,temp);
-    
+
 	//Assign Value
 	*delimiter='\n';
 	temp=strtok(NULL, delimiter);
@@ -254,6 +292,35 @@ int findLocalEnvVar(struct environmentVariable_t** localVariables, int* localVar
 	}
 	return -1;
 }
+
+/*
+ * Results: envVarName will be removed from localVariables if it exists
+ * Returns: True if path existed and removed, false if path didn't exist
+ */
+bool removeLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName){
+	if(envVarName==NULL){
+		exit(EXIT_FAILURE);//Null path
+	}
+	int index=findLocalEnvVar(localVariables,localVariablesCount,envVarName);
+	if(index==-1){
+		return false;
+	}
+	//Remove Path and adjust pathArr
+	for(;index<(*localVariablesCount)-1;index++){
+		localVariables[index]=localVariables[index+1];
+	}
+	//Decrease the array size
+	*localVariablesCount-=1;
+	//Free extra memory
+	if(*localVariablesCount==0){
+		free(localVariables);
+		localVariables=NULL;
+	}else if((localVariables=(struct environmentVariable_t**) realloc(localVariables, sizeof(struct environmentVariable_t**)*(*localVariablesCount)))==NULL){
+		exit(EXIT_FAILURE);//Alloc Failed
+	}
+	return true;
+}
+
 int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruct,struct environmentVariable_t** localEnvVariables, int* localEnvVariablesCount, char** pathArr, int* pathArrCount) {
     
     int argc=0;
@@ -471,7 +538,9 @@ void printPromptMessage(int commandCount){
         strcpy(printDir,pgetwd);
     }
     gethostname(compName, 80); //Get the name of the computer
+
 	printf ("Commands Entered %d -%s@%s:%s$ ", commandCount, getlogin(), compName, printDir);
+
 }
 //PATH FUNCTIONS
 ////////////////
@@ -536,7 +605,7 @@ char** addPath(char** pathArr, int* pathArrSize, char* path){
 	if(path==NULL){
 		exit(EXIT_FAILURE);//Null path
 	}
-    
+
 	char* addedPath=malloc(sizeof(char*));
 	strcpy(addedPath,path);
 	if((findPath(pathArr, pathArrSize, addedPath)!=-1)){
@@ -613,4 +682,6 @@ char* buildExportPath(char** pathArr, int pathArrSize){
 		}
 	}
 	return systemPath;
+
 }
+
