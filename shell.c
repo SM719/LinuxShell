@@ -169,16 +169,16 @@ int main(int argc, char *argv[])
                 {
                 	//Fetch the environment variable this process should have
                 	pathArr=getPath(pathArrCount);
+                	//Clear the local environment variables
                 	localEnvVariablesCount=0;
                 	localEnvVariables=NULL;
-                	//Clear the local environment variables
 					execv(absolutePath, command.argv);
+					return 0;
                 }
                 //If the run in background flag isn't set wait for child process to finish before continuing
                 if(backgroundFlag == 0)
                 {
-                    
-                    wait(&status);
+                    waitpid(pid,&status,0);
                 }
                 else {backgroundFlag = 0;}
                 
@@ -205,8 +205,6 @@ int main(int argc, char *argv[])
 	return 0;
 }
 /*
-<<<<<<< HEAD
-=======
  * Prints the help contents of the project
  */
 void printHelp(){
@@ -226,7 +224,6 @@ void printHelp(){
 	printf("\n");
 }
 /*
->>>>>>> 2f4287cb680c31aa907f03c6c7daff066fc6e795
  * Returns a envVar struct or Null if the input was bad
  */
 struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
@@ -409,7 +406,7 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     		}
     	}
         
-        
+        //Checks if & passed as arg separately
 		if(strcmp(commandStruct->argv[argc],"&") == 0 )
 		{
 			commandStruct->argv[argc] = " ";
@@ -421,7 +418,7 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
 		{
             length = strlen(commandStruct->argv[argc]) - 1;
             find = commandStruct->argv[argc];
-            
+            //Checks if & passed with command
             if (find[length] == '&')
             {
 				find = strsep(&find, "&");
