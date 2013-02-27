@@ -36,7 +36,7 @@ struct command_t { char *name;
 };
 
 int main(void) {
-    //Simple Test to ensure program started
+    //Simple Test to ensure the program started
     puts("Shell Started...");
     
     //Variables
