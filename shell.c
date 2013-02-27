@@ -351,7 +351,7 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
         
         //Parse path
         *delimiter='\n';
-        temp=strtok(userCommandEntered, delimiter);
+        temp=strtok(userCommandEntered+3, delimiter);
         
         if(temp==NULL){
             return 1;
