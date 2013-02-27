@@ -165,7 +165,6 @@ int main(int argc, char *argv[])
 }
 
 struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
-	//struct environmentVariable_t envVar=malloc(sizeof(struct environmentVariable_t));
 	struct environmentVariable_t* result=malloc(sizeof(struct environmentVariable_t));
 
 	char* delimiter=malloc(sizeof(char));
@@ -373,9 +372,9 @@ char** getPath(int* pathArrSize){
 	
     
     //Move first part of Path into array, if it doesn't exist then return.
-    char* inputPath2=getenv ("PATH");
-	inputPath = (char *) malloc (strlen(inputPath2));
-	strcpy(inputPath,inputPath2);
+    char* temptInputPath=getenv ("PATH");
+	inputPath = (char *) malloc (strlen(temptInputPath));
+	strcpy(inputPath,temptInputPath);
     
     
     
@@ -407,6 +406,7 @@ char** getPath(int* pathArrSize){
     
     //Set the size from the index and return the results
     *pathArrSize=index_currentPath+1;
+    free(delimiter);
 	return result;
 }
 
@@ -497,14 +497,9 @@ bool exportPath(char** pathArr, int pathArrSize){
 	}
 	//Attempt to write the path to the system and return the results
 	if((setenv("PATH",systemPath,1))==0){
+		free(systemPath);
 		return true;
 	}else
+		free(systemPath);
 		return false;
-}
-/*
- * Returns: Environment variable or null if not found
- * Note: Check if it is null before displaying
- */
-char* getEnv(char* envName){
-	return getenv(envName);
 }
