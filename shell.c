@@ -101,26 +101,33 @@ int main(int argc, char *argv[])
             if(temp == -1) printf("No such file or directory\n");
         }//addPath
         else if (strcmp(command.name,"addPath")==0){
-        	pathArr=addPath(pathArr,pathArrCount,command.argv[1]);
+        	if(strlen(command.argv[1])!=0){
+        		pathArr=addPath(pathArr,pathArrCount,command.argv[1]);
+        	}
 
 		}//rmPath
         else if (strcmp(command.name,"rmPath")==0){
 			removePath(pathArr,pathArrCount, command.argv[1]);
+		}//rmEnv
+        else if (strcmp(command.name,"rmEnv")==0){
+        	unsetenv(command.argv[1]);
 		}
         //export
         else if (strcmp(command.name,"export")==0){
         	if(command.argv[1]!=NULL && command.argv[2]!=NULL){
         		//Check to see if we are creating and exporting an existing variable or creating a new one
         		if(strchr(command.argv[1],'=')==NULL){
-        			//Existing Local Variable
+        			//Existing Local EnvVar
         			//Values already separated by parseCommand into two arguments
         			setenv(command.argv[1],command.argv[2],1);
         		}
         		else{
         			//Create Local EnvVar then export it
         			struct environmentVariable_t* envVar=createEnvVar(command.argv[1]);
-        			localEnvVariables=addToLocalEnvVars(localEnvVariables,localEnvVariablesCount, envVar);
-        			setenv(envVar->name,envVar->value,1);
+        			if(envVar!=NULL){
+						localEnvVariables=addToLocalEnvVars(localEnvVariables,localEnvVariablesCount, envVar);
+						setenv(envVar->name,envVar->value,1);
+        			}
         		}
         	}
         }
@@ -160,7 +167,10 @@ int main(int argc, char *argv[])
                 
             }//Check to see if they were creating a local environment variable
             else if(command.argc != 0 && strchr(command.argv[0],'=')!=NULL){
-            	localEnvVariables=addToLocalEnvVars(localEnvVariables,localEnvVariablesCount,createEnvVar(command.argv[0]));
+            	struct environmentVariable_t* envVar=createEnvVar(command.argv[0]);
+            	if(envVar!=NULL){
+            		localEnvVariables=addToLocalEnvVars(localEnvVariables,localEnvVariablesCount,envVar);
+            	}
             }
             else{
             	printf("%s: command not found\n", command.argv[0]);
@@ -175,7 +185,9 @@ int main(int argc, char *argv[])
 	}
 	return 0;
 }
-
+/*
+ * Returns a envVar struct or Null if the input was bad
+ */
 struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
 	struct environmentVariable_t* result=malloc(sizeof(struct environmentVariable_t));
 
@@ -185,11 +197,18 @@ struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
 	//Assign Name
 	char* temp;
 	temp=strtok(rawEnvVariable, delimiter);
+	if(temp==NULL){
+		return NULL;
+	}
 	result->name=malloc(strlen(temp));
 	strcpy(result->name,temp);
+
 	//Assign Value
 	*delimiter='\n';
 	temp=strtok(NULL, delimiter);
+	if(temp==NULL){
+		return NULL;
+	}
 	result->value=malloc(strlen(temp));
 	strcpy(result->value,temp);
 
@@ -253,6 +272,7 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     			if((localEnvVarIndex=findLocalEnvVar(localEnvVariables,localEnvVariablesCount,commandStruct->argv[argc]+1))!=-1){
     				//char* name=malloc(strlen(localEnvVariables[localEnvVarIndex]->name));
     				//name
+    				//TODO
     				//If Found Ready Arguments for the export command
     				commandStruct->argv[argc]=localEnvVariables[localEnvVarIndex]->name;
     				commandStruct->argv[++argc] = (char *) malloc(16);
@@ -260,6 +280,9 @@ int parseCommandEntered(char *userCommandEntered, struct command_t *commandStruc
     				break;
     			}else if(strcmp(commandStruct->argv[argc]+1,"PATH")==0){
     				//Ready Arguments for the export command
+    				commandStruct->argv[argc]=malloc(sizeof("PATH"));
+    				commandStruct->argv[argc]="PATH";
+    				commandStruct->argv[++argc] = (char *) malloc(16);
 					commandStruct->argv[argc]=buildExportPath(pathArr,*pathArrCount);
 					break;
     			}
