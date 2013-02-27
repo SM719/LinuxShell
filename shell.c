@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
             }
             else{
             	printf("%s: command not found\n", command.argv[0]);
-
+                
             }
             
         }
@@ -165,10 +165,10 @@ int main(int argc, char *argv[])
 
 struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
 	struct environmentVariable_t* result=malloc(sizeof(struct environmentVariable_t));
-
+    
 	char* delimiter=malloc(sizeof(char));
 	*delimiter='=';
-
+    
 	//Assign Name
 	char* temp;
 	temp=strtok(rawEnvVariable, delimiter);
@@ -179,19 +179,19 @@ struct environmentVariable_t* createEnvVar(char* rawEnvVariable){
 	temp=strtok(NULL, delimiter);
 	result->value=malloc(strlen(temp));
 	strcpy(result->value,temp);
-
+    
 	free(delimiter);
 	return result;
 }
 /*
-* Results: adds envVar to the localVariables if it doesn't exist or overwrites the old value if it does
-* Returns: the index where the envVar was written
-*/
+ * Results: adds envVar to the localVariables if it doesn't exist or overwrites the old value if it does
+ * Returns: the index where the envVar was written
+ */
 struct environmentVariable_t** addToLocalEnvVars(struct environmentVariable_t** localVariables, int* localVariablesCount, struct environmentVariable_t* envVar){
 	if(envVar==NULL){
 		exit(EXIT_FAILURE);//Null envVar
 	}
-
+    
 	int index;
 	//Check if local path exists
 	if(localVariables==NULL || (index=findLocalEnvVar(localVariables,localVariablesCount,envVar->name))==-1){
@@ -207,8 +207,8 @@ struct environmentVariable_t** addToLocalEnvVars(struct environmentVariable_t** 
 	//return index;
 }
 /*
-* Returns: index of envVar if found in localVariables, -1 otherwise
-*/
+ * Returns: index of envVar if found in localVariables, -1 otherwise
+ */
 int findLocalEnvVar(struct environmentVariable_t** localVariables, int* localVariablesCount, char* envVarName){
 	int index;
 	for(index=0;index<*localVariablesCount; index++){
@@ -505,5 +505,5 @@ bool exportPath(char** pathArr, int pathArrSize){
 		return true;
 	}else
 		free(systemPath);
-		return false;
+    return false;
 }
